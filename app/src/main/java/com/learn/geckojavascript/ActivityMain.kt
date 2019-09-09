@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import kotlinx.android.synthetic.main.activity_main.*
 import org.json.JSONException
 import org.json.JSONObject
+import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.WebExtension
@@ -35,29 +36,8 @@ class ActivityMain : AppCompatActivity() {
             runtime = GeckoRuntime.create(context)
         }
 
-        val portDelegate = object : WebExtension.PortDelegate {
-            var port: WebExtension.Port? = null
-            override fun onPortMessage(message: Any, port: WebExtension.Port) {
-                Log.e("PortDelegate", "Received message from WebExtension: $message")
-            }
-
-            override fun onDisconnect(port: WebExtension.Port) {
-                if (port === mPort) {
-                    mPort = null
-                }
-            }
-        }
-
-        val messageDelegate = object : WebExtension.MessageDelegate {
-            override fun onConnect(port: WebExtension.Port) {
-                mPort = port
-                mPort?.setDelegate(portDelegate)
-            }
-        }
-
-        val extension = WebExtension("resource://android/assets/messaging/")
-
-        extension.setMessageDelegate(messageDelegate, "browser")
+        val extension = createWebExtension()
+        session.setMessageDelegate(extension,createMessageDelegate(),"browser")
         val geckoResult = runtime?.registerWebExtension(extension)
         geckoResult?.exceptionally {
             Log.e("MessageDelegate", "Error registering WebExtension", it)
@@ -68,8 +48,24 @@ class ActivityMain : AppCompatActivity() {
         settings.allowJavascript = true
         session.progressDelegate = createProgressDelegate()
         session.open(runtime!!)
+
         geckoView.setSession(session)
         session.loadUri("https://en.m.wikipedia.org/wiki/JavaScript")
+    }
+
+    private fun createMessageDelegate(): WebExtension.MessageDelegate{
+        return object : WebExtension.MessageDelegate{
+            override fun onMessage(message: Any, sender: WebExtension.MessageSender): GeckoResult<Any>? {
+                Log.d("MessageDelegate", message.toString())
+                return null
+            }
+        }
+    }
+    private fun createWebExtension(): WebExtension {
+        return WebExtension(
+            "resource://android/assets/messaging/",
+            "myextension@example.com",
+            WebExtension.Flags.ALLOW_CONTENT_MESSAGING)
     }
 
     private fun createProgressDelegate(): GeckoSession.ProgressDelegate {
